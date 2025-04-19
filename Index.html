@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Entrerium - Robô Cripto</title>
+  <style>
+    body {
+      background-color: #000;
+      color: #0f0;
+      font-family: Arial, sans-serif;
+      text-align: center;
+      padding: 20px;
+    }
+    select, button {
+      padding: 10px;
+      margin: 10px;
+      font-size: 16px;
+    }
+    #alertas {
+      margin-top: 20px;
+      white-space: pre-line;
+      border-top: 1px solid #0f0;
+      padding-top: 10px;
+    }
+    .painel {
+      border: 1px solid #0f0;
+      padding: 10px;
+      margin: 15px 0;
+      border-radius: 10px;
+    }
+  </style>
+</head>
+<body>
+  <h1>Entrerium</h1>
+  <p>Robô de Análise Técnica + Sentimento</p>
+
+  <div>
+    <label for="moeda">Escolha a moeda:</label>
+    <select id="moeda">
+      <option value="BTC/USDT">Bitcoin (BTC)</option>
+      <option value="ETH/USDT">Ethereum (ETH)</option>
+      <option value="DOGE/USDT">Dogecoin (DOGE)</option>
+    </select>
+    <button onclick="trocarMoeda()">Atualizar Gráfico</button>
+  </div>
+
+  <div class="painel">
+    <h2>Gráfico</h2>
+    <iframe id="grafico" src="https://s.tradingview.com/widgetembed/?symbol=BINANCE:BTCUSDT&interval=15&theme=dark&style=1" width="100%" height="400" frameborder="0"></iframe>
+  </div>
+
+  <div class="painel">
+    <h2>Sentimento de Mercado (Fear & Greed)</h2>
+    <div id="sentimento-texto" style="font-size: 1.2em; margin-bottom: 10px;">Carregando...</div>
+  </div>
+
+  <div class="painel">
+    <h2>Alertas Técnicos (RSI e MACD)</h2>
+    <div id="alertas">Carregando...</div>
+  </div>
+
+  <script>
+    const apiKey = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJjbHVlIjoiNjgwMzFhZDQ4MDZmZjE2NTFlY2I0NGFlIiwiaWF0IjoxNzQ1MDMzOTQwLCJleHAiOjMzMjQ5NDk3OTQwfQ.Wxg2bkAIugtLBqWbpJuswlTbLajynJ7KRrLc2SDd4cc";
+
+    let simboloSelecionado = "BTC/USDT";
+    const alertaEl = document.getElementById("alertas");
+
+    function trocarMoeda() {
+      simboloSelecionado = document.getElementById("moeda").value;
+      const simboloTV = "BINANCE:" + simboloSelecionado.replace("/", "") + "T";
+      document.getElementById("grafico").src = `https://s.tradingview.com/widgetembed/?symbol=${simboloTV}&interval=15&theme=dark&style=1`;
+      verificarIndicadores();
+    }
+
+    async function verificarIndicadores() {
+      try {
+        const rsiUrl = `https://api.taapi.io/rsi?secret=${apiKey}&exchange=binance&symbol=${simboloSelecionado}&interval=15m`;
+        const macdUrl = `https://api.taapi.io/macd?secret=${apiKey}&exchange=binance&symbol=${simboloSelecionado}&interval=15m`;
+
+        const [rsiRes, macdRes] = await Promise.all([
+          fetch(rsiUrl),
+          fetch(macdUrl)
+        ]);
+
+        const rsi = await rsiRes.json();
+        const macd = await macdRes.json();
+
+        let alerta = `RSI: ${rsi.value.toFixed(2)}\nMACD: ${macd.valueMACD.toFixed(2)} | Signal: ${macd.valueSignal.toFixed(2)}\n`;
+
+        if (rsi.value < 30 && macd.valueMACD > macd.valueSignal) {
+          alerta += "\n>> ALERTA DE COMPRA";
+        } else if (rsi.value > 70 && macd.valueMACD < macd.valueSignal) {
+          alerta += "\n>> ALERTA DE VENDA";
+        } else {
+          alerta += "\n>> SEM ALERTAS NO MOMENTO";
+        }
+
+        alertaEl.textContent = alerta;
+      } catch (e) {
+        alertaEl.textContent = "Erro ao buscar dados técnicos.";
+        console.error("Erro nos indicadores:", e);
+      }
+    }
+
+    async function carregarSentimento() {
+      try {
+        const res = await fetch("https://api.alternative.me/fng/");
+        const dados = await res.json();
+        const valor = dados.data[0].value;
+        const classificacao = dados.data[0].value_classification;
+        const atualizacao = dados.data[0].timestamp;
+        const data = new Date(atualizacao * 1000).toLocaleString("pt-BR");
+        document.getElementById("sentimento-texto").innerText =
+          `Índice: ${valor} (${classificacao}) | Atualizado em: ${data}`;
+      } catch (e) {
+        document.getElementById("sentimento-texto").innerText = "Erro ao carregar índice de sentimento.";
+        console.error("Erro no sentimento:", e);
+      }
+    }
+
+    // Iniciar verificações
+    verificarIndicadores();
+    carregarSentimento();
+    setInterval(verificarIndicadores, 30000); // Atualiza a cada 30s
+  </script>
+</body>
+</html>
